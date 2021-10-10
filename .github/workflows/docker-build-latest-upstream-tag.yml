@@ -1,0 +1,71 @@
+name: "Docker build latest upstream tag"
+
+on:
+  schedule:
+    - cron:  '0 5 * * *'
+    # scheduled at 05:00 every Day
+
+  workflow_dispatch:  # click the button on Github repo!
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - name: tailscale
+            regx: '(?<=refs/heads/release-branch/)[0-9]*\.[0-9]*$'
+            repo: tailscale/tailscale
+    name: Build ${{ matrix.name }}
+    env:
+      NAME: "${{ matrix.name }}"
+      REGX: "${{ matrix.regx }}"
+      REPO: "${{ matrix.repo }}"
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v2
+
+    - name: Checkout upstream repo
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        repository: ${{ env.REPO }}
+        path: ${{ env.NAME }}
+
+    - name: Log in to the Container registry
+      uses: docker/login-action@v1
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Prepare environment
+      id: buildEnv
+      run: |
+        cd ${{ env.NAME }}
+        source ../version.sh
+        export LATEST_RELEASE=$(get_latest_release_branch "${{ env.REGX }}")
+        echo $LATEST_RELEASE
+        export LATEST_TAG=$(get_latest_tag "$LATEST_RELEASE")
+        echo $LATEST_TAG
+
+        git checkout "$LATEST_TAG"
+
+        echo "::set-output name=latest_tag::$LATEST_TAG"
+    
+    - name: Build and push docker image
+      uses: docker/build-push-action@v2
+      with:
+        context: ${{ env.NAME }}/
+        push: true
+        tags: |
+          "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.NAME }}-latest"
+          "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.NAME }}-${{ steps.buildEnv.outputs.latest_tag }}"

@@ -20,6 +20,8 @@ jobs:
             regx_branch: '(?<=refs/heads/release-branch/)[0-9]*\.[0-9]*$'
             regx_tag: '(?<=refs/heads/release-branch/)[0-9]*\.[0-9]*$'
             repo: tailscale/tailscale
+          - name: headscale
+            repo: juanfont/headscale
     name: Build ${{ matrix.name }}
     env:
       NAME:   "${{ matrix.name }}"
